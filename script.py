@@ -13,9 +13,9 @@ from spl.token.instructions import get_associated_token_address, create_associat
 from usdc_swaps import route_map
 
 
-SOLANA_CLIENT = AsyncClient('https://solana-mainnet.g.alchemy.com/v2/TFIFl5qbWkJcGklE_sKJWgpj3gPE6g32')
-WALLET = Keypair.from_secret_key(based58.b58decode('347D6oFeLYzPN1G5ZnFAMcTrezG1eVPfgb8L5eKKVVexHS1DhmD2v6Y76qXJ9YJpLk8PFSLiZt9EveZf2Qwdszhq'.encode("ascii")))
-INPUT_USDC_AMOUNT = 2000000
+SOLANA_CLIENT = AsyncClient('https://api.mainnet-beta.solana.com')
+WALLET = Keypair.from_secret_key(based58.b58decode('secret_key'.encode("ascii")))
+INPUT_USDC_AMOUNT = 5000000
 USDC_BASE = 1000000
 
 
@@ -78,7 +78,7 @@ async def serialized_swap_transaction(usdcToTokenRoute, tokenToUsdcRoute):
                 return str(e)
 
 async def _create_associated_token_account(token):
-    # Create Associated token account if not available
+    # Create Associated token account for token to swap if not available
     token_associated_account = get_associated_token_address(
         WALLET.public_key,
         PublicKey(token)
@@ -97,12 +97,14 @@ async def _create_associated_token_account(token):
             await SOLANA_CLIENT.send_transaction(txn, WALLET, opts=opts)
         except Exception as e:
             print("Error occured while creating ata: ", str(e))
+            return e
         
     else:
         print("Associated token account exists: ", ata)
 
 
 async def swap(input, generatedRouteMap):
+    # Check for any possible ARB opportunities
     while True:
         for token in generatedRouteMap[:150]:
             usdcToToken = await get_coin_quote(
@@ -119,12 +121,10 @@ async def swap(input, generatedRouteMap):
 
                 if tokenToUsdc.get('data'):
                     if tokenToUsdc.get('data')[0].get('otherAmountThreshold') > input:
-                        print("=========> Bingo:", token, " || ", tokenToUsdc.get('data')[0].get('otherAmountThreshold') / USDC_BASE)
                         await _create_associated_token_account(token)
                         await serialized_swap_transaction(usdcToToken.get('data')[0], tokenToUsdc.get('data')[0])
                         profit = tokenToUsdc.get('data')[0].get('otherAmountThreshold') - input
                         print("Approx Profit made: ", profit / USDC_BASE)
-                        print("\n")
     
 
 if __name__ == '__main__':
